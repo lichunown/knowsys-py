@@ -1,12 +1,63 @@
 import logging
 
 from dataclasses import dataclass
-from knowsys.collection import knowsys_collection, _KnowsysCollection
+from knowsys.collection import knowsys_collection, _KnowsysCollection, _LazyLoadType
 from typing import *
+
+from knowsys.enums import Direction
+from knowsys.utils.strings import random_string
+
+
+class _DirectData(str):
+    pass
+
+
+class _MappingData(str):
+    pass
+
+class _DirectionData(str):
+    pass
 
 
 class KnowsysType(object):
+
     collection = knowsys_collection
+    _mapping = [_DirectData('code'), _DirectData('name'), _DirectData('name_en'), _MappingData('parent')]
+
+    def saving_list(self) -> List[str]:
+        res = []
+        for item in self._mapping:
+            if isinstance(item, _DirectData):
+                res.append(getattr(self, item))
+            elif isinstance(item, _MappingData):
+                item = getattr(self, item)
+                if item is None:
+                    res.append('')
+                else:
+                    res.append(item.code)
+            elif isinstance(item, _DirectionData):
+                res.append(getattr(self, item).name)
+            else:
+                raise TypeError(f'Unexpected type {type(item)}')
+        return res
+
+    @classmethod
+    def saving_meta(cls) -> List[str]:
+        return cls._mapping
+
+    @classmethod
+    def load_list(cls, data: List[str]):
+        inputs = {}
+        for key, value in zip(cls._mapping, data):
+            if isinstance(key, _DirectData):
+                inputs[key] = value
+            elif isinstance(key, _MappingData):
+                inputs[key] = _LazyLoadType(value, None)
+            elif isinstance(key, _DirectionData):
+                inputs[key] = getattr(Direction, value)
+            else:
+                raise TypeError(f'Unexpected type {type(key)}')
+        return cls(**inputs)
 
     def __init__(self,
                  code: str,
@@ -24,6 +75,11 @@ class KnowsysType(object):
                           f' exists: {self.collection.get(code)}')
         else:
             self.collection.add(self)
+
+    def create_child(self, name, code=None, name_en=None):
+        if code is None:
+            code = random_string(64)
+        return self.__class__(name, code, name_en, self)
 
     @property
     def Code(self):

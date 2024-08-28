@@ -2,7 +2,7 @@ import typing
 from typing import *
 from dataclasses import dataclass
 
-from knowsys.types.base import KnowsysType
+from knowsys.types.base import KnowsysType, _DirectData, _MappingData
 from knowsys.collection import KnowsysCollection
 
 if typing.TYPE_CHECKING:
@@ -18,6 +18,9 @@ class PropertyType(KnowsysType):
     parent: Optional["PropertyType"]
     belong_to: Optional["KnowsysType"]
 
+    _mapping = [_DirectData('code'), _DirectData('name'), _DirectData('name_en'),
+                _MappingData('parent'), _MappingData('belong_to')]
+
     def __init__(self,
                  code: str,
                  name: str,
@@ -27,6 +30,11 @@ class PropertyType(KnowsysType):
         super().__init__(code, name, name_en, parent)
 
         self.belong_to = belong_to
+
+    def create_child(self, name, code=None, name_en=None):
+        res = super().create_child(name, code, name_en)
+        res.belong_to = self.belong_to
+        return res
 
     def terms(self, refresh=True):
         from knowsys.types.term_type import PropertyTermType

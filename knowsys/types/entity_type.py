@@ -1,7 +1,7 @@
 from typing import *
 from dataclasses import dataclass
 
-from knowsys.types.base import KnowsysType
+from knowsys.types.base import KnowsysType, _DirectData, _MappingData
 from knowsys.collection import KnowsysCollection, _KnowsysCollection
 
 
@@ -11,6 +11,8 @@ class EntityType(KnowsysType):
     name_en: Optional[str]
 
     parent: Optional["EntityType"]
+
+    _mapping = [_DirectData('code'), _DirectData('name'), _DirectData('name_en'), _MappingData('parent')]
 
     def __init__(self,
                  code: str,

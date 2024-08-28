@@ -1,4 +1,5 @@
 import logging
+import os
 import typing
 
 import numpy as np
@@ -172,6 +173,32 @@ class _LazyLoadType(object):
 class KnowsysCollection(_KnowsysCollection):
 
     instance: "KnowsysCollection" = None
+
+    def save(self, dir_path):
+        os.makedirs(dir_path, exist_ok=True)
+        types = set([item.__class__ for item in self._data])
+        for t in types:
+            data = self._filter_by_type(t)
+            with open(os.path.join(dir_path, f'{t.__name__}.csv'), 'w', encoding='utf8') as f:
+                f.write(','.join(t.saving_meta()) + '\n')
+                for item in data:
+                    f.write(','.join([str(item) for item in item.saving_list()]) + '\n')
+
+    @classmethod
+    def load(cls, dir_path):
+        from knowsys.types import (EntityType, EntityTermType, RelationTermType,
+                                   RelationType, EntityPropertyType, RelationPropertyType)
+        class_mapping = {t.__name__: t for t in [EntityType, EntityTermType, RelationTermType,
+                                                 RelationType, EntityPropertyType, RelationPropertyType]}
+        for filename in os.listdir(dir_path):
+            if filename.endswith('.csv'):
+                class_name = filename.split('.')[0]
+                t_class = class_mapping[class_name]
+                with open(os.path.join(dir_path, filename), 'r', encoding='utf8') as f:
+                    f.readline()
+                    for line in f:
+                        line = line.strip()
+                        t_class.load_list(line.split(','))
 
     def __init__(self):
         if self.instance is not None:

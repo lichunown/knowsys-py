@@ -2,12 +2,16 @@ from typing import *
 from dataclasses import dataclass
 
 from knowsys.enums import Direction
-from knowsys.types.base import KnowsysType
-from knowsys.collection import _KnowsysCollection
+from knowsys.types.base import KnowsysType, _DirectData, _MappingData, _DirectionData
+from knowsys.collection import _KnowsysCollection, _LazyLoadType
 from knowsys.types.property_type import PropertyType
 
 if TYPE_CHECKING:
     from knowsys.types.entity_type import EntityType
+
+
+class _TupleData(str):
+    pass
 
 
 class RelationType(KnowsysType):
@@ -20,6 +24,44 @@ class RelationType(KnowsysType):
     contain_entities: Tuple["EntityType", "EntityType"]
     direction: Direction
 
+    _mapping = [_DirectData('code'), _DirectData('name'), _DirectData('name_en'),
+                _MappingData('parent'), _TupleData('contain_entities'), _DirectionData('direction')]
+
+    def saving_list(self) -> List[str]:
+        res = []
+        for item in self._mapping:
+            if isinstance(item, _DirectData):
+                res.append(getattr(self, item))
+            elif isinstance(item, _MappingData):
+                item = getattr(self, item)
+                if item is None:
+                    res.append('')
+                else:
+                    res.append(item.code)
+            elif isinstance(item, _DirectionData):
+                res.append(getattr(self, item).name)
+            elif isinstance(item, _TupleData):
+                res.append('|'.join([i.code for i in getattr(self, item)]))
+            else:
+                raise TypeError(f'Unexpected type {type(item)}')
+        return res
+
+    @classmethod
+    def load_list(cls, data: List[str]):
+        inputs = {}
+        for key, value in zip(cls._mapping, data):
+            if isinstance(key, _DirectData):
+                inputs[key] = value
+            elif isinstance(key, _MappingData):
+                inputs[key] = _LazyLoadType(value, None)
+            elif isinstance(key, _DirectionData):
+                inputs[key] = getattr(Direction, value)
+            elif isinstance(key, _TupleData):
+                inputs[key] = tuple([_LazyLoadType(item, None) for item in value.split('|')])
+            else:
+                raise TypeError(f'Unexpected type {type(key)}')
+        return cls(**inputs)
+
     def __init__(self, code: str,
                  name: str,
                  name_en: Optional[str] = None,
@@ -29,6 +71,19 @@ class RelationType(KnowsysType):
         super().__init__(code, name, name_en, parent)
         self.contain_entities = contain_entities
         self.direction = direction
+
+    def create_child(self, name, code=None, name_en=None,
+                     contain_entities: Tuple["EntityType", "EntityType"] = None,
+                     direction: Direction = None):
+        if contain_entities is None:
+            contain_entities = self.contain_entities
+        if direction is None:
+            direction = self.direction
+
+        res = super().create_child(name, code, name_en)
+        res.contain_entities = contain_entities
+        res.direction = direction
+        return res
 
     @property
     def from_entity(self):
