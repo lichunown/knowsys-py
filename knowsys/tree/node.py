@@ -1,10 +1,10 @@
 from typing import *
 
-from semantic_compare.tree import TreeSpace
-from semantic_compare.utils import random_string
+from knowsys.tree.space import TreeSpace
+from knowsys.tree.utils import random_string
 
 if TYPE_CHECKING:
-    from semantic_compare.tree._types import SpaceType, NodeType
+    from knowsys.tree._types import SpaceType, NodeType
 
 
 class TreeNode(object):
@@ -13,11 +13,16 @@ class TreeNode(object):
     parent_id: str
     space: "SpaceType"
 
+    __inherited_properties__ = []
+
     def __hash__(self):
         return self.id_.__hash__()
 
+    def __getitem__(self, item):
+        return self.children[item]
+
     def __init__(self, id_: Optional[str], name: str, parent: Union[str, "TreeNode", None],
-                 space: Optional["SpaceType"] = None):
+                 space: Optional["SpaceType"] = None, **kwargs):
         if id_ is None:
             id_ = random_string()
 
@@ -37,8 +42,16 @@ class TreeNode(object):
         self.space = space
         self.space[self.id_] = self
 
-    def create_child(self, name: str, id_: Optional[str]=None):
-        return self.__class__(id_, name, self, self.space)
+        for k in self.__inherited_properties__:
+            if self.parent is not None:
+                if getattr(self, k, None) is None:
+                    setattr(self, k, getattr(self.parent, k))
+        for k, v in kwargs.items():
+            # setattr(self, k, v)
+            raise ValueError(f'cannot parse the input param {k}:{v}')
+
+    def create_child(self, name: str, id_: Optional[str]=None, **kwargs):
+        return self.__class__(id_, name, self, self.space, **kwargs)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Dict], self_name='default', tree_space_class=TreeSpace):
@@ -64,7 +77,7 @@ class TreeNode(object):
 
     @property
     def brothers(self) -> List["NodeType"]:
-        from semantic_compare.tree.node_list import NodeList
+        from knowsys.tree.node_list import NodeList
         if self.parent is None:
             return []
         res = self.parent.children.copy()
@@ -77,7 +90,7 @@ class TreeNode(object):
 
     @property
     def children(self) -> List["NodeType"]:
-        from semantic_compare.tree.node_list import NodeList
+        from knowsys.tree.node_list import NodeList
         return NodeList(self.space.get_children_of_node(self.id_))
 
     @property
@@ -85,7 +98,7 @@ class TreeNode(object):
         return len(self.children) == 0
 
     def __repr__(self):
-        return f'TreeNode({self.name})'
+        return f'{self.__class__.__name__}({self.name})'
 
     def _repr_self(self, **kwargs):
         return self.__repr__()
@@ -108,6 +121,11 @@ class TreeNode(object):
     def __eq__(self, other: "NodeType"):
         if not isinstance(other, TreeNode):
             raise ValueError
+        return self.id_ == other.id_
+
+    def child_eq(self, other: "NodeType"):
+        if not isinstance(other, TreeNode):
+            raise ValueError
         if tuple(sorted([item.name for item in self.children])) != tuple(sorted([item.name for item in other.children])):
             return False
         for child in self.children:
@@ -127,4 +145,8 @@ class TreeNode(object):
             return 0
         return self.parent.level + 1
 
+
+
+if __name__ == '__main__':
+    root = TreeNode(None, 'root', None)
 

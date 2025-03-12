@@ -6,49 +6,38 @@ import pandas as pd
 
 from typing import *
 from knowsys.types import *
-from knowsys.enums import Direction
-from knowsys.collection import knowsys_collection
+from knowsys.enums import DirectionType, Direction
+from knowsys.tree import TreeSpace
+from knowsys.types import *
 
 
 base_data_dir = os.path.join(os.path.split(__file__)[0], 'cached_data/')
 
 # ##################### init ############################
 
-root = KnowsysType(code='1011000000000006', name='知识体系', name_en='root')
-entity_type_root = EntityType('105100000000000a', '实体', 'entity', root)
-relation_type_root = RelationType('109500000000000b', '关系', 'relation', root,
-                                  contain_entities=(entity_type_root, entity_type_root))
-
-setattr(knowsys_collection, 'root', root)
-setattr(knowsys_collection, 'relation_root', relation_type_root)
-setattr(knowsys_collection, 'entity_root', entity_type_root)
+# root = KnowsysType(code='1011000000000006', name='知识体系', name_en='root')
+space = TreeSpace('Knowsys')
+entity_type_root = Entity('105100000000000a', '实体', None, space)
+relation_type_root = Relation('109500000000000b', '关系', None, space,
+                              '105100000000000a', '105100000000000a')
 
 # ##################### load entity_type / relation_type ############################
-
-data = pd.read_excel(os.path.join(base_data_dir, 'ks_system_category.xlsx'),
-                     converters={'category_code': str, 'parent_category_code': str})
+data = pd.read_csv(os.path.join(base_data_dir, 'ks_system_category.csv'),
+                   converters={'category_code': str, 'parent_category_code': str})
 
 for item in list(data.iloc)[3:]:
     if item.category_full_name_cn.startswith('实体'):
-        EntityType(item.category_code,
-                   item.category_name_cn,
-                   item.category_name,
-                   knowsys_collection.lazy_get(item.parent_category_code))
+        Entity(item.category_code, item.category_name_cn, item.parent_category_code, space)
+
     elif item.category_full_name_cn.startswith('关系'):
         relation_con_entities: List[str] = item.category_full_name_cn.split('/')[1].split('-')
         relation_name = '/'.join(item.category_full_name_cn.split('/')[1:])
-        RelationType(item.category_code,
-                     relation_name,  # item.category_name_cn
-                     item.category_name,
-                     knowsys_collection.lazy_get(item.parent_category_code),
-                     contain_entities=(knowsys_collection.lazy_get(name=relation_con_entities[0]),
-                                       knowsys_collection.lazy_get(name=relation_con_entities[1])),
-                     direction=Direction.UNKNOWN)
-knowsys_collection.check_lazy()
+        Relation(item.category_code, relation_name, item.parent_category_code, space,
+                 space.get_by_name(relation_con_entities[0]).id_, space.get_by_name(relation_con_entities[0]).id_)
+
 
 # ##################### load relation type with direction ############################
-
-data = pd.read_excel(os.path.join(base_data_dir, 'ks_system_direction.xlsx'),
+data = pd.read_csv(os.path.join(base_data_dir, 'ks_system_direction.csv'),
                      converters={'category_code': str, 'direction_code': str})
 
 direction_num_str_mapping = {
@@ -56,80 +45,96 @@ direction_num_str_mapping = {
     (1, 1): "反向",
     (0, 0): "双向",
 }
+relation_root_root = RelationTerm(None, '关系术语', None, space,
+                                   space.relation_root.id_, Direction.BiDirection)
 
 for item in data.iloc:
-    parent = knowsys_collection.get(item.category_code)
-    RelationType(item.direction_code,
-                 item.reverse_expression,
-                 '', parent,
-                 (knowsys_collection.get(item.origin),
-                  knowsys_collection.get(item.destination)),
-                 Direction.from_str(direction_num_str_mapping[(item.reversed, item.directed)]))
+    parent = space[item.category_code]
+    if item.directed:
+        parent.direction_type = DirectionType.Direction
+        if item.reversed:
+            direction = Direction.Backward
+        else:
+            direction = Direction.Forward
+    else:
+        parent.direction_type = DirectionType.BiDirection
+        direction = Direction.BiDirection
+
+    RelationTerm(item.direction_code, item.reverse_expression,relation_root_root, space,
+                 item.category_code, direction)
 
 # ##################### load entity_term ############################
 
-data = pd.read_excel(os.path.join(base_data_dir, 'ks_system_entity.xlsx'),
-                     converters={'category_code': str, 'entity_code': str, 'parent_entity_code': str})
-data = data[(data['version_name'] == 'Standard')]
-l1_data = data[data['parent_entity_code'] == '0000000000']
-for item in l1_data.iloc:
-    EntityTermType(item.entity_code,
-                   item.entity_name,
-                   '', None,
-                   knowsys_collection.lazy_get(item.category_code))
-
-other_data = data[(data['parent_entity_code'] != '0000000000') & (data['parent_entity_code'] != '/')]
-for item in other_data.iloc:
-    EntityTermType(item.entity_code,
-                   item.entity_name,
-                   '',
-                   knowsys_collection.lazy_get(item.parent_entity_code),
-                   knowsys_collection.lazy_get(item.category_code))
-knowsys_collection.check_lazy()
-
-# ##################### load relation term ############################
-
-data = pd.read_excel(os.path.join(base_data_dir, 'ks_system_category_statement.xlsx'),
-                     converters={'category_code': str})
-data = data[data["del_stat"] == 0]
+data = pd.read_csv(os.path.join(base_data_dir, 'ks_system_entity.csv'),
+                   converters={'category_code': str, 'entity_code': str, 'parent_entity_code': str})
+data = data[(data['version_name'] == 'standard')]
+entity_term_root = EntityTerm('0000000000', '实体术语', None, space,
+                              space.entity_root.id_)
 for item in data.iloc:
-    RelationTermType(item.statement_code, item.statement_content,
-                     '', None,
-                     knowsys_collection.lazy_get(item.parent_statement_code))
+    if item.parent_entity_code == '/':
+        continue
+    EntityTerm(item.entity_code, item.entity_name, item.parent_entity_code, space,
+               item.category_code)
 
-knowsys_collection.check_lazy()
+# ##################### load ER term ############################
+
+data = pd.read_csv(os.path.join(base_data_dir, 'ks_system_category_statement.csv'),
+                   converters={'category_code': str})
+data = data[data["del_stat"] == 0]
+er_term_root = ERTerm(None, "实体关系术语", None, space,
+                      space.entity_term_root.id_, space.relation_term_root.id_)
+for item in data.iloc:
+    if item.parent_statement_code == item.direction_code:
+        parent = er_term_root
+    else:
+        parent = item.parent_statement_code
+    ERTerm(item.statement_code, item.statement_content,parent, space,
+           None, item.direction_code)
+
 
 # ##################### load properties ############################
 
-data = pd.read_excel(os.path.join(base_data_dir, 'ks_system_property.xlsx'),
-                     converters={'category_code': str, 'entity_code': str, 'parent_entity_code': str})
+data = pd.read_csv(os.path.join(base_data_dir, 'ks_system_property.csv'),
+                   converters={'category_code': str, 'entity_code': str, 'parent_entity_code': str})
+attr_root = Attribute(None, '属性', None, space)
+e_attr = Attribute(None, '实体属性', attr_root, space)
+r_attr = Attribute(None, '关系属性', attr_root, space)
+
 for item in data.iloc:
-    belong_to = knowsys_collection.get(item.category_code)
-    if isinstance(belong_to, EntityType):
-        EntityPropertyType(item.property_code, item.property_name_cn,
-                           item.property_name, None,
-                           belong_to=belong_to)
-    elif isinstance(belong_to, RelationType):
-        RelationPropertyType(item.property_code, item.property_name_cn,
-                             item.property_name, None,
-                             belong_to=belong_to)
+    try:
+        modify = space[item.category_code]
+    except Exception:
+        logging.warning(f'cannot found the modify {item.category_code} of property {item.property_code}({item.property_name_cn})')
+        continue
+    if isinstance(modify, Entity):
+        Attribute(item.property_code, item.property_name_cn, e_attr, None,
+                  modify_id=modify.id_)
 
 # ##################### load property terms ############################
 
-data = pd.read_excel(os.path.join(base_data_dir, 'ks_system_property_expression.xlsx'),
-                     converters={'category_code': str, 'property_code': str,
+data = pd.read_csv(os.path.join(base_data_dir, 'ks_system_property_expression.csv'),
+                   converters={'category_code': str, 'property_code': str,
                                  'parent_expression_code': str, 'expression_code': str})
+data = data[data["del_stat"] == 0]
+attr_term_root = AttributeTerm(None, '属性术语', None, space,
+                               attr_root.id_)
 for item in data.iloc:
-    belong_to = knowsys_collection.get(item.property_code)
-    if item.expression_level == 1:
-        parent = None
+    try:
+        modify = space[item.category_code]
+    except Exception:
+        logging.warning(f'cannot found the modify {item.category_code} of term {item.expression_code}({item.expression_content})')
+        continue
+    try:
+        attribute = space[item.property_code]
+    except Exception:
+        logging.warning(f'cannot found the attribute {item.property_code} of term {item.expression_code}({item.expression_content})')
+        continue
+    if item.expression_level == 0:
+        parent = attr_term_root
     else:
-        parent = knowsys_collection.lazy_get(item.parent_expression_code)
-    if isinstance(belong_to, EntityType):
-        EntityPropertyType(item.expression_code, item.expression_content,
-                           '', parent, belong_to)
-    elif isinstance(belong_to, RelationType):
-        RelationPropertyType(item.expression_code, item.expression_content,
-                             '', parent, belong_to)
+        parent = space[item.parent_expression_code]
+
+    AttributeTerm(item.expression_code, item.expression_content, parent, space,
+                  attribute.id_, modify.id_)
 
 

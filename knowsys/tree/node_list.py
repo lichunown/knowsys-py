@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from semantic_compare.tree._types import SpaceType, NodeType
+    from knowsys.tree._types import SpaceType, NodeType
 
 
-class NodeList(list):
+class NodeList[T](list):
 
     def sample(self):
         return random.sample(self, 1)[0]
@@ -23,12 +23,3 @@ class NodeList(list):
         for item in self:
             _travel_list(item)
         return random.sample(all_items, 1)[0]
-
-    def search_by_name(self, name):
-        from semantic_compare.tree import SemanticGroupNode
-
-        for node in self:
-            node: SemanticGroupNode
-            if name in node.alias_group:
-                return node
-        return None
