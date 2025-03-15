@@ -1,0 +1,7 @@
+"id","version_name","chinese_name","logo_path","dependent_mode","dependent_version","create_user","create_time","modify_user","modify_time","del_stat"
+"1","standard","标准版","Standard_icon.png","1","1010009","testaaa2","2023-10-24 20:10:00","admin_icos","2024-07-11 17:34:21","0"
+"238","beijing","北京版","Standard_icon.png","1","1010009","admin","2023-11-22 14:43:41","admin_icos","2024-07-11 17:34:21","0"
+"239","datong","大同版","Standard_icon.png","1","1010009","admin","2023-11-22 15:06:47","admin_icos","2024-07-11 17:34:21","0"
+"240","xinyu","新余版","Standard_icon.png","1","1010009","admin","2023-11-22 15:07:03","admin_icos","2024-07-11 17:34:21","0"
+"241","test","test","Standard_icon.png","1","1000000","admin","2023-12-15 16:44:41","admin","2023-12-15 16:44:41","1"
+"242","pre_release","预发版","Standard_icon.png","1","1010009","admin","2023-12-18 15:34:49","admin_icos","2024-07-11 17:34:21","0"

@@ -46,3 +46,19 @@ class RelationTerm(TreeNode):
     @property
     def er_terms_all(self):
         return self.space.er_terms_of_relation_term_all(self)
+
+    def _children_for_print(self):
+        if len(self.children) == 0:
+            return self.er_terms
+        return self.children
+
+    def repr_detail(self):
+        return super().__repr__() + f'{{{"|".join([item.name for item in self.attributes_terms_all])}}}'
+
+    @property
+    def attributes_terms_all(self):
+        res = []
+        for attr in self.relation.attributes_all:
+            res.extend(attr.terms_all)
+        return res
+

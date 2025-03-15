@@ -2,6 +2,7 @@ from typing import *
 
 from knowsys.tree.node import TreeNode
 from knowsys.enums import DirectionType
+from knowsys.types import RelationTerm, EntityTerm
 
 if TYPE_CHECKING:
     from knowsys.tree.space import TreeSpace
@@ -19,3 +20,19 @@ class ERTerm(TreeNode):
         self.entity_term_id = entity_term_id
         self.relation_term_id = relation_term_id
         super().__init__(id_, name, parent, space, **kwargs)
+
+    @property
+    def entity_term(self) -> "EntityTerm":
+        return self.space[self.entity_term_id]
+
+    @property
+    def relation_term(self) -> "RelationTerm":
+        return self.space[self.relation_term_id]
+
+    @property
+    def attributes_terms_all(self):
+        return self.relation_term.attributes_terms_all
+
+    def repr_detail(self):
+        return super().__repr__()
+

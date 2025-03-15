@@ -26,3 +26,13 @@ class Entity(TreeNode):
     @property
     def attributes_all(self):
         return self.space.attributes_of_node_all(self)
+
+    @property
+    def attributes_terms_all(self):
+        res = []
+        for attr in self.attributes_all:
+            res.extend(attr.terms_all)
+        return res
+
+    def repr_detail(self):
+        return super().__repr__() + f'[a:{len(self.attributes)}/{len(self.attributes_all)}|t:{len(self.terms)}/{len(self.terms_all)}]'

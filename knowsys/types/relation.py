@@ -45,3 +45,11 @@ class Relation(TreeNode):
     @property
     def attributes_all(self):
         return self.space.attributes_of_node_all(self)
+
+    def repr_detail(self):
+        return super().__repr__() + f'[a:{len(self.attributes)}/{len(self.attributes_all)}|t:{len(self.terms)}/{len(self.terms_all)}]'
+
+    def _children_for_print(self):
+        if len(self.children) == 0:
+            return self.terms
+        return self.children

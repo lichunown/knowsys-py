@@ -22,3 +22,7 @@ class EntityTerm(TreeNode):
     @property
     def entity(self):
         return self.space[self.entity_id]
+
+    @property
+    def attributes_terms_all(self):
+        return self.entity.attributes_terms_all

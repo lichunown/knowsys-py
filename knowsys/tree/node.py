@@ -42,13 +42,32 @@ class TreeNode(object):
         self.space = space
         self.space[self.id_] = self
 
-        for k in self.__inherited_properties__:
+        self._lazy_check_funcs = []
+
+        def _lazy_check_func():
             if self.parent is not None:
-                if getattr(self, k, None) is None:
-                    setattr(self, k, getattr(self.parent, k))
-        for k, v in kwargs.items():
-            # setattr(self, k, v)
-            raise ValueError(f'cannot parse the input param {k}:{v}')
+                assert isinstance(self.parent, self.__class__), (f'The node type ({self.__class__.__name__}) '
+                                                                 f'{self.id_}:{self.name} is different with its parent '
+                                                                 f'type ({self.parent.__class__.__name__}) '
+                                                                 f'{self.parent.id_}:{self.parent.name}')
+            for k in self.__inherited_properties__:
+                if self.parent is not None:
+                    if getattr(self, k, None) is None:
+                        setattr(self, k, getattr(self.parent, k))
+            for k, v in kwargs.items():
+                # setattr(self, k, v)
+                raise ValueError(f'cannot parse the input param {k}:{v}')
+        if self.parent_id in self.space:
+            _lazy_check_func()
+        else:
+            self.set_lazy_check(_lazy_check_func)
+
+    def set_lazy_check(self, func):
+        self._lazy_check_funcs.append(func)
+
+    def lazy_check(self):
+        for func in self._lazy_check_funcs:
+            func()
 
     def create_child(self, name: str, id_: Optional[str]=None, **kwargs):
         return self.__class__(id_, name, self, self.space, **kwargs)
@@ -100,8 +119,14 @@ class TreeNode(object):
     def __repr__(self):
         return f'{self.__class__.__name__}({self.name})'
 
-    def _repr_self(self, **kwargs):
+    def repr_detail(self):
         return self.__repr__()
+
+    def _repr_self(self, **kwargs):
+        return self.repr_detail()
+
+    def _children_for_print(self):
+        return self.children
 
     def _tree_string(self, level=2, space=0, **kwargs):
 
@@ -110,7 +135,7 @@ class TreeNode(object):
 
         res = _space() + self._repr_self(**kwargs) + '\n'
         if level > 1:
-            for child in self.children:
+            for child in self._children_for_print():
                 res += child._tree_string(level - 1, space + 1)
 
         return res
@@ -120,7 +145,7 @@ class TreeNode(object):
 
     def __eq__(self, other: "NodeType"):
         if not isinstance(other, TreeNode):
-            raise ValueError
+            raise ValueError(f'[{self}] compare to {other}, but it is not NodeType')
         return self.id_ == other.id_
 
     def child_eq(self, other: "NodeType"):

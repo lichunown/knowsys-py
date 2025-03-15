@@ -38,6 +38,16 @@ class TreeSpace(OutCacheMixin):
             self.delete_with_children(child_child)
         self.delete(child)
 
+    def lazy_check(self):
+        for node in self.node_dict.values():
+            node.lazy_check()
+
+    def __contains__(self, item):
+        from knowsys.tree.node import TreeNode
+        if isinstance(item, TreeNode):
+            item = item.id_
+        return item in self.node_dict
+
     def __setitem__(self, key: str, value: "NodeType"):
         self.node_dict[key] = value
         self.modifying((value.__class__.__name__, 'all'))
@@ -129,17 +139,17 @@ class TreeSpace(OutCacheMixin):
     @_cache_wrapper.cache('all', 'RelationTerm')
     def relation_terms_of_relation_root(self, relation: "Relation") -> List["RelationTerm"]:
         from knowsys.types import RelationTerm
-        return self.filter(lambda x: isinstance(x, RelationTerm) and x.relation_id == relation.id_ and x.parent == self.relation_term_root)
+        return self.filter(lambda x: isinstance(x, RelationTerm) and x.relation_id == relation.id_ and x.parent is not None and x.parent == self.relation_term_root)
 
     @_cache_wrapper.cache('all', 'EntityTerm')
     def entity_terms_of_entity_root(self, entity: "Entity") -> List["EntityTerm"]:
         from knowsys.types import EntityTerm
-        return self.filter(lambda x: isinstance(x, EntityTerm) and x.entity_id == entity.id_ and x.parent == self.entity_term_root)
+        return self.filter(lambda x: isinstance(x, EntityTerm) and x.entity_id == entity.id_ and x.level == 1)
 
     @_cache_wrapper.cache('all', 'ERTerm')
     def er_terms_of_relation_term_root(self, relation_term: "RelationTerm") -> List["ERTerm"]:
         from knowsys.types import ERTerm
-        return self.filter(lambda x: isinstance(x, ERTerm) and x.relation_term_id == relation_term.id_ and x.parent == self.er_term_root)
+        return self.filter(lambda x: isinstance(x, ERTerm) and x.relation_term_id == relation_term.id_ and x.parent is not None and x.parent == self.er_term_root)
 
     @_cache_wrapper.cache('all', 'Attribute')
     def attributes_of_node_all(self, entity: Union["Entity", "Relation"]):

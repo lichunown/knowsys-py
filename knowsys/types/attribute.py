@@ -30,3 +30,5 @@ class Attribute(TreeNode):
     def terms(self):
         return self.space.attribute_term_of_node_root(self)
 
+    def repr_detail(self):
+        return super().__repr__() + f'[t:{len(self.terms)}/{len(self.terms_all)}]'
