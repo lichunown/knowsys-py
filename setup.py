@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='knowsys',  # 你的项目名称
-    version='1.0.4',  # 你的项目版本
+    version='2.0.0',  # 你的项目版本
     author='Chunyang Li',  # 你的名字
     author_email='lichunyang_1@outlook.com',  # 你的邮箱
     packages=find_packages(),  # 自动发现项目中的所有包
