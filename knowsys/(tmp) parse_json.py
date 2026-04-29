@@ -1,4 +1,4 @@
-from utils import load_json
+from knowsys_utils.file_utils import load_json
 import pandas as pd
 
 
