@@ -1,5 +1,8 @@
-from .base import KnowsysType
-from .entity_type import EntityType
-from .relation_type import RelationType
-from .term_type import EntityTermType, RelationTermType
-from .property_type import EntityPropertyType, RelationPropertyType
+from .entity import Entity
+from .relation import Relation
+from .relation_term import RelationTerm
+from .entity_term import EntityTerm
+from .er_term import ERTerm
+from .attribute import Attribute
+from .attribute_term import AttributeTerm
+from .entity import TreeNode
