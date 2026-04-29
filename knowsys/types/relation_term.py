@@ -1,7 +1,7 @@
 from typing import *
 
 from knowsys.tree.node import TreeNode
-from knowsys.enums import DirectionType, Direction
+from knowsys.enums import Direction
 
 
 if TYPE_CHECKING:
