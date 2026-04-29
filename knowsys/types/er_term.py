@@ -1,7 +1,6 @@
 from typing import *
 
 from knowsys.tree.node import TreeNode
-from knowsys.enums import DirectionType
 from knowsys.types import RelationTerm, EntityTerm
 
 if TYPE_CHECKING:

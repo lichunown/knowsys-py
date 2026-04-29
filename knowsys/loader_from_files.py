@@ -1,7 +1,5 @@
-import logging
 import os
 
-import numpy as np
 import pandas as pd
 
 from typing import *
@@ -54,11 +52,6 @@ data = pd.read_csv(os.path.join(base_data_dir, 'knowsys_table_ks_system_directio
                      converters={'category_code': str, 'direction_code': str})
 data = data[data["del_stat"] == 0]
 
-direction_num_str_mapping = {
-    (0, 1): "正向",
-    (1, 1): "反向",
-    (0, 0): "双向",
-}
 relation_root_root = RelationTerm('关系术语', '关系术语', None, space,
                                    space.relation_root.id_, Direction.BiDirection)
 

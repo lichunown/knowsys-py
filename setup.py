@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='knowsys',  # 你的项目名称
-    version='1.0.4',  # 你的项目版本
+    version='2.0.1',  # 你的项目版本
     author='Chunyang Li',  # 你的名字
     author_email='lichunyang_1@outlook.com',  # 你的邮箱
     packages=find_packages(),  # 自动发现项目中的所有包
@@ -16,17 +16,14 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
     ],
+    python_requires='>=3.10',
     # 项目依赖项
     install_requires=[
-        # 'requests',  # 举例，如果你的项目依赖requests库
-        # 'numpy',
+        'pandas>=1.5',
     ],
 	package_data={
        # 任何在your_package包目录下的'.txt'文件都会被包括
