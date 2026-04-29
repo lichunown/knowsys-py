@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='knowsys',  # 你的项目名称
-    version='1.0.0',  # 你的项目版本
+    version='1.0.4',  # 你的项目版本
     author='Chunyang Li',  # 你的名字
     author_email='lichunyang_1@outlook.com',  # 你的邮箱
     packages=find_packages(),  # 自动发现项目中的所有包
@@ -28,6 +28,12 @@ setup(
         # 'requests',  # 举例，如果你的项目依赖requests库
         # 'numpy',
     ],
+	package_data={
+       # 任何在your_package包目录下的'.txt'文件都会被包括
+       'knowsys.cached_data': ['*.csv', '*.md', '*.json'],
+       # 你也可以指定子目录
+       # 'your_package.subpackage': ['*.csv'],
+   },
     # # 项目入口点，如果你的包是一个应用程序
     # entry_points={
     #     'console_scripts': [
