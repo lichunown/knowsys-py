@@ -46,6 +46,13 @@ class Relation(TreeNode):
     def attributes_all(self):
         return self.space.attributes_of_node_all(self)
 
+    @property
+    def attributes_terms_all(self):
+        res = []
+        for attr in self.attributes_all:
+            res.extend(attr.terms_all)
+        return res
+
     def repr_detail(self):
         return super().__repr__() + f'[a:{len(self.attributes)}/{len(self.attributes_all)}|t:{len(self.terms)}/{len(self.terms_all)}]'
 
@@ -53,3 +60,22 @@ class Relation(TreeNode):
         if len(self.children) == 0:
             return self.terms
         return self.children
+
+    def export(self, is_hetero=True):
+        nodes, edges = super().export(is_hetero)
+        if not is_hetero:
+            edges.append((self.from_entity_id, 'knowsys_edge', self.id_))
+            edges.append((self.id_, 'knowsys_edge', self.to_entity_id))
+        else:
+            if self.direction_type == DirectionType.UNKNOWN:
+                edges.append((self.from_entity_id, 'e_r_unknown', self.id_))
+                edges.append((self.id_, 'r_e_unknown', self.to_entity_id))
+            elif self.direction_type == DirectionType.Direction:
+                edges.append((self.from_entity_id, 'e_r', self.id_))
+                edges.append((self.id_, 'r_e', self.to_entity_id))
+            elif self.direction_type == DirectionType.BiDirection:
+                edges.append((self.from_entity_id, 'e_r', self.id_))
+                edges.append((self.from_entity_id, 'r_e', self.id_))
+                edges.append((self.id_, 'r_e', self.to_entity_id))
+                edges.append((self.id_, 'e_r', self.to_entity_id))
+        return nodes, edges

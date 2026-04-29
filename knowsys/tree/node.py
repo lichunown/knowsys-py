@@ -46,7 +46,7 @@ class TreeNode(object):
 
         def _lazy_check_func():
             if self.parent is not None:
-                assert isinstance(self.parent, self.__class__), (f'The node type ({self.__class__.__name__}) '
+                assert isinstance(self.parent, self.__class__) or self.parent_id == '1011000000000006', (f'The node type ({self.__class__.__name__}) '
                                                                  f'{self.id_}:{self.name} is different with its parent '
                                                                  f'type ({self.parent.__class__.__name__}) '
                                                                  f'{self.parent.id_}:{self.parent.name}')
@@ -170,6 +170,15 @@ class TreeNode(object):
             return 0
         return self.parent.level + 1
 
+    def export(self, is_hetero=True):
+        node_name = self.__class__.__name__ if is_hetero else 'knowsys_node'
+        nodes = [(self.id_, node_name, self.name)]
+        edges = []
+        if self.parent is not None:
+            edge_name = 'contains' if is_hetero else 'knowsys_edge'
+            edges.append((self.parent_id, edge_name, self.id_))
+            # edges.append((self.id_, default_edge_type[1], self.parent_id))
+        return nodes, edges
 
 
 if __name__ == '__main__':

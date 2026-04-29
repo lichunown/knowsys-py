@@ -36,3 +36,14 @@ class ERTerm(TreeNode):
     def repr_detail(self):
         return super().__repr__()
 
+    def export(self, is_hetero=True):
+        nodes, edges = super().export(is_hetero)
+        if self.entity_term_id is not None:
+            edge_name = 'conn_entity_term' if is_hetero else 'knowsys_edge'
+            edges.append((self.id_, edge_name, self.entity_term_id))
+            # edges.append((self.entity_term_id, 'e_has_er_term', self.id_))
+        if self.relation_term_id is not None:
+            edge_name = 'conn_relation_term' if is_hetero else 'knowsys_edge'
+            edges.append((self.id_, edge_name, self.relation_term_id))
+            # edges.append((self.relation_term_id, 'r_has_er_term', self.id_))
+        return nodes, edges

@@ -62,3 +62,10 @@ class RelationTerm(TreeNode):
             res.extend(attr.terms_all)
         return res
 
+    def export(self, is_hetero=True):
+        nodes, edges = super().export(is_hetero)
+        if self.relation_id is not None:
+            edge_name = 'belong_to_relation' if is_hetero else 'knowsys_edge'
+            edges.append((self.id_, edge_name, self.relation_id))
+            # edges.append((self.relation_id, 'has_relation_term', self.id_))
+        return nodes, edges

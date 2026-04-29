@@ -1,22 +1,94 @@
-import functools
-import random
+from collections import defaultdict
 from typing import *
-
-from knowsys.tree.cacheing import OutCacheMixin, OutCacheWrapper
 
 if TYPE_CHECKING:
     from knowsys.tree._types import SpaceType, NodeType, Relation, Entity, RelationTerm, EntityTerm, AttributeTerm, Attribute, ERTerm
     from knowsys.tree.node_list import NodeList
 
 
-class TreeSpace(OutCacheMixin):
-
-    _cache_wrapper = OutCacheWrapper()
+class TreeSpace:
 
     def __init__(self, name: str):
         self.name = name
         self.node_dict: Dict[str, NodeType]  = {}
         self._del_nodes: Dict[str, NodeType]  = {}
+        self._init_indexes()
+
+    def _init_indexes(self):
+        self._name_index: Dict[str, List["NodeType"]] = defaultdict(list)
+        self._children_by_parent: Dict[Optional[str], List["NodeType"]] = defaultdict(list)
+        self._type_index: Dict[str, List["NodeType"]] = defaultdict(list)
+        self._attributes_by_modify: Dict[str, List["NodeType"]] = defaultdict(list)
+        self._attribute_terms_by_attribute: Dict[str, List["NodeType"]] = defaultdict(list)
+        self._attribute_terms_by_modify: Dict[str, List["NodeType"]] = defaultdict(list)
+        self._relation_terms_by_relation: Dict[str, List["NodeType"]] = defaultdict(list)
+        self._relation_terms_by_from_entity: Dict[str, List["NodeType"]] = defaultdict(list)
+        self._relation_terms_by_to_entity: Dict[str, List["NodeType"]] = defaultdict(list)
+        self._entity_terms_by_entity: Dict[str, List["NodeType"]] = defaultdict(list)
+        self._er_terms_by_relation_term: Dict[str, List["NodeType"]] = defaultdict(list)
+
+    def _index_node(self, node: "NodeType"):
+        """Update lookup indexes for one node.
+
+        The space is optimized around read-heavy graph queries.  Maintaining
+        these indexes makes common lookups proportional to the result size
+        instead of scanning every node in the knowledge system.
+        """
+        self._name_index[node.name].append(node)
+        self._children_by_parent[node.parent_id].append(node)
+
+        class_names = [cls.__name__ for cls in node.__class__.mro()]
+        for class_name in class_names:
+            self._type_index[class_name].append(node)
+
+        if node.__class__.__name__ == "Attribute":
+            modify_id = getattr(node, "modify_id", None)
+            if modify_id is not None:
+                self._attributes_by_modify[modify_id].append(node)
+        elif node.__class__.__name__ == "AttributeTerm":
+            attribute_id = getattr(node, "attribute_id", None)
+            modify_id = getattr(node, "modify_id", None)
+            if attribute_id is not None:
+                self._attribute_terms_by_attribute[attribute_id].append(node)
+            if modify_id is not None:
+                self._attribute_terms_by_modify[modify_id].append(node)
+        elif node.__class__.__name__ == "RelationTerm":
+            relation_id = getattr(node, "relation_id", None)
+            if relation_id is not None:
+                self._relation_terms_by_relation[relation_id].append(node)
+                try:
+                    self._relation_terms_by_from_entity[node.from_entity.id_].append(node)
+                    self._relation_terms_by_to_entity[node.to_entity.id_].append(node)
+                except Exception:
+                    # The relation may not be ready until lazy inheritance has
+                    # finished.  lazy_check() rebuilds indexes after that pass.
+                    pass
+        elif node.__class__.__name__ == "EntityTerm":
+            entity_id = getattr(node, "entity_id", None)
+            if entity_id is not None:
+                self._entity_terms_by_entity[entity_id].append(node)
+        elif node.__class__.__name__ == "ERTerm":
+            relation_term_id = getattr(node, "relation_term_id", None)
+            if relation_term_id is not None:
+                self._er_terms_by_relation_term[relation_term_id].append(node)
+
+    def rebuild_indexes(self):
+        """Rebuild all indexes from the current node state.
+
+        Some node fields are inherited during lazy validation, and a few
+        maintenance operations update parent ids in place.  Rebuilding after
+        those operations keeps the indexes simple and avoids stale query data.
+        """
+        self._init_indexes()
+        for node in self.node_dict.values():
+            self._index_node(node)
+
+    def _as_node_list(self, nodes: Iterable["NodeType"]) -> "NodeList":
+        from knowsys.tree.node_list import NodeList
+        return NodeList(nodes)
+
+    def _nodes_of_type(self, class_name: str) -> "NodeList":
+        return self._as_node_list(self._type_index.get(class_name, []))
 
     def delete(self, child):
         from knowsys.tree.node import TreeNode
@@ -25,7 +97,7 @@ class TreeSpace(OutCacheMixin):
         if child in self.node_dict:
             self._del_nodes[child] = self.node_dict[child]
             del self.node_dict[child]
-            self.modifying((child.__class__.__name__, 'all'))
+            self.rebuild_indexes()
 
     def delete_without_children(self, child):
         global_parent_id = child.parent_id if child.parent_id is not None else None
@@ -41,6 +113,7 @@ class TreeSpace(OutCacheMixin):
     def lazy_check(self):
         for node in self.node_dict.values():
             node.lazy_check()
+        self.rebuild_indexes()
 
     def __contains__(self, item):
         from knowsys.tree.node import TreeNode
@@ -49,8 +122,12 @@ class TreeSpace(OutCacheMixin):
         return item in self.node_dict
 
     def __setitem__(self, key: str, value: "NodeType"):
+        if key in self.node_dict:
+            self.node_dict[key] = value
+            self.rebuild_indexes()
+            return
         self.node_dict[key] = value
-        self.modifying((value.__class__.__name__, 'all'))
+        self._index_node(value)
 
     def __getitem__(self, item: str) -> "NodeType":
         return self.node_dict[item]
@@ -63,113 +140,110 @@ class TreeSpace(OutCacheMixin):
         from knowsys.tree.node_list import NodeList
         return NodeList(filter(func, self.node_dict.values()))
 
-    @_cache_wrapper.cache('all')
+    def get_by_name_all(self, name) -> List[Optional["NodeType"]]:
+        return self._as_node_list(self._name_index.get(name, []))
+
     def get_by_name(self, name) -> Optional["NodeType"]:
-        res = self.filter(lambda x: x.name == name)
+        res = self.get_by_name_all(name)
         return None if len(res) == 0 else res[0]
 
-    @_cache_wrapper.cache('all')
     def get_children_of_node(self, node_id) -> List["NodeType"]:
-        return self.filter(lambda x: x.parent_id == node_id)
+        return self._as_node_list(self._children_by_parent.get(node_id, []))
 
-    @_cache_wrapper.cache('all')
     def roots(self) -> "NodeList":
-        return self.filter(lambda x: x.parent_id is None)
+        return self._as_node_list(self._children_by_parent.get(None, []))
 
     def __repr__(self):
         return f'TreeSpace({self.name})'
 
     @property
-    @_cache_wrapper.cache('all', 'Relation')
+    def root(self):
+        return self.node_dict['1011000000000006']
+
+    @property
     def relation_root(self) -> "Relation":
-        from knowsys.types import Relation
-        return self.filter(lambda x: x.parent is None and isinstance(x, Relation))[0]
+        return self._nodes_of_type("Relation").filter(lambda x: x.parent_id == self.root.id_)[0]
 
     @property
-    @_cache_wrapper.cache('all', 'Entity')
     def entity_root(self) -> "Entity":
-        from knowsys.types import Entity
-        return self.filter(lambda x: x.parent is None and isinstance(x, Entity))[0]
+        return self._nodes_of_type("Entity").filter(lambda x: x.parent_id == self.root.id_)[0]
 
     @property
-    @_cache_wrapper.cache('all', 'EntityTerm')
     def entity_term_root(self) -> "EntityTerm":
-        from knowsys.types import EntityTerm
-        return self.filter(lambda x: x.parent is None and isinstance(x, EntityTerm))[0]
+        return self._nodes_of_type("EntityTerm").filter(lambda x: x.parent_id is None)[0]
 
     @property
-    @_cache_wrapper.cache('all', 'RelationTerm')
     def relation_term_root(self) -> "RelationTerm":
-        from knowsys.types import RelationTerm
-        return self.filter(lambda x: x.parent is None and isinstance(x, RelationTerm))[0]
+        return self._nodes_of_type("RelationTerm").filter(lambda x: x.parent_id is None)[0]
 
     @property
-    @_cache_wrapper.cache('all', 'ERTerm')
     def er_term_root(self) -> "ERTerm":
-        from knowsys.types import ERTerm
-        return self.filter(lambda x: x.parent is None and isinstance(x, ERTerm))[0]
+        return self._nodes_of_type("ERTerm").filter(lambda x: x.parent_id is None)[0]
 
     @property
-    @_cache_wrapper.cache('all', 'Attribute')
     def attribute_root(self) -> "Attribute":
-        from knowsys.types import Attribute
-        return self.filter(lambda x: x.parent is None and isinstance(x, Attribute))[0]
+        return self._nodes_of_type("Attribute").filter(lambda x: x.parent_id is None)[0]
 
     @property
-    @_cache_wrapper.cache('all', 'AttributeTerm')
     def attribute_term_root(self) -> "AttributeTerm":
-        from knowsys.types import AttributeTerm
-        return self.filter(lambda x: x.parent is None and isinstance(x, AttributeTerm))[0]
+        return self._nodes_of_type("AttributeTerm").filter(lambda x: x.parent_id is None)[0]
 
-    @_cache_wrapper.cache('all', 'RelationTerm')
     def relation_terms_of_relation_all(self, relation: "Relation") -> List["RelationTerm"]:
-        from knowsys.types import RelationTerm
-        return self.filter(lambda x: isinstance(x, RelationTerm) and x.relation_id == relation.id_)
+        return self._as_node_list(self._relation_terms_by_relation.get(relation.id_, []))
 
-    @_cache_wrapper.cache('all', 'EntityTerm')
+    def relation_terms_from_entity(self, entity: "Entity") -> List["RelationTerm"]:
+        return self._as_node_list(self._relation_terms_by_from_entity.get(entity.id_, []))
+
+    def relation_terms_to_entity(self, entity: "Entity") -> List["RelationTerm"]:
+        return self._as_node_list(self._relation_terms_by_to_entity.get(entity.id_, []))
+
     def entity_terms_of_entity_all(self, entity: "Entity") -> List["EntityTerm"]:
-        from knowsys.types import EntityTerm
-        return self.filter(lambda x: isinstance(x, EntityTerm) and x.entity_id == entity.id_)
+        return self._as_node_list(self._entity_terms_by_entity.get(entity.id_, []))
 
-    @_cache_wrapper.cache('all', 'ERTerm')
     def er_terms_of_relation_term_all(self, relation_term: "RelationTerm") -> List["ERTerm"]:
-        from knowsys.types import ERTerm
-        return self.filter(lambda x: isinstance(x, ERTerm) and x.relation_term_id == relation_term.id_)
+        return self._as_node_list(self._er_terms_by_relation_term.get(relation_term.id_, []))
 
-    @_cache_wrapper.cache('all', 'RelationTerm')
     def relation_terms_of_relation_root(self, relation: "Relation") -> List["RelationTerm"]:
-        from knowsys.types import RelationTerm
-        return self.filter(lambda x: isinstance(x, RelationTerm) and x.relation_id == relation.id_ and x.parent is not None and x.parent == self.relation_term_root)
+        root_id = self.relation_term_root.id_
+        return self.relation_terms_of_relation_all(relation).filter(lambda x: x.parent_id == root_id)
 
-    @_cache_wrapper.cache('all', 'EntityTerm')
     def entity_terms_of_entity_root(self, entity: "Entity") -> List["EntityTerm"]:
-        from knowsys.types import EntityTerm
-        return self.filter(lambda x: isinstance(x, EntityTerm) and x.entity_id == entity.id_ and x.level == 1)
+        root_id = self.entity_term_root.id_
+        return self.entity_terms_of_entity_all(entity).filter(lambda x: x.parent_id == root_id)
 
-    @_cache_wrapper.cache('all', 'ERTerm')
     def er_terms_of_relation_term_root(self, relation_term: "RelationTerm") -> List["ERTerm"]:
-        from knowsys.types import ERTerm
-        return self.filter(lambda x: isinstance(x, ERTerm) and x.relation_term_id == relation_term.id_ and x.parent is not None and x.parent == self.er_term_root)
+        root_id = self.er_term_root.id_
+        return self.er_terms_of_relation_term_all(relation_term).filter(lambda x: x.parent_id == root_id)
 
-    @_cache_wrapper.cache('all', 'Attribute')
     def attributes_of_node_all(self, entity: Union["Entity", "Relation"]):
-        from knowsys.types import Attribute
-        return self.filter(lambda x: isinstance(x, Attribute) and x.modify_id == entity.id_)
+        return self._as_node_list(self._attributes_by_modify.get(entity.id_, []))
 
-    @_cache_wrapper.cache('all', 'Attribute')
     def attributes_of_node_root(self, entity: Union["Entity", "Relation"]):
-        from knowsys.types import Attribute
-        return self.filter(lambda x: isinstance(x, Attribute) and x.modify_id == entity.id_ and x.level == 2)
+        root_id = self.attribute_root.id_
+        return self.attributes_of_node_all(entity).filter(lambda x: x.parent_id == root_id or (x.parent is not None and x.parent.parent_id == root_id))
 
-    @_cache_wrapper.cache('all', 'AttributeTerm')
     def attribute_term_of_node_all(self, item: Union["Entity", "Relation", "Attribute"]):
-        from knowsys.types import AttributeTerm
-        return self.filter(lambda x: isinstance(x, AttributeTerm) and (x.modify_id == item.id_ or x.attribute_id == item.id_))
+        nodes = []
+        seen = set()
+        for node in self._attribute_terms_by_modify.get(item.id_, []):
+            nodes.append(node)
+            seen.add(node.id_)
+        for node in self._attribute_terms_by_attribute.get(item.id_, []):
+            if node.id_ not in seen:
+                nodes.append(node)
+        return self._as_node_list(nodes)
 
-    @_cache_wrapper.cache('all', 'AttributeTerm')
     def attribute_term_of_node_root(self, item: Union["Entity", "Relation", "Attribute"]):
-        from knowsys.types import AttributeTerm
-        return self.filter(lambda x: isinstance(x, AttributeTerm) and (x.modify_id == item.id_ or x.attribute_id == item.id_) and x.level == 1)
+        root_id = self.attribute_term_root.id_
+        return self.attribute_term_of_node_all(item).filter(lambda x: x.parent_id == root_id)
+
+    def export(self, is_hetero=True):
+        nodes, edges = [], []
+        for node in self.node_dict.values():
+            n, e = node.export(is_hetero)
+            nodes.extend(n)
+            edges.extend(e)
+        return nodes, edges
 
 
 if __name__ == '__main__':
@@ -179,5 +253,4 @@ if __name__ == '__main__':
     # root = TreeNode(None, 'root', None, space)
     # root.create_child('a')
     # root.create_child('b')
-    # space.re_cacheing()
     #

@@ -32,3 +32,11 @@ class Attribute(TreeNode):
 
     def repr_detail(self):
         return super().__repr__() + f'[t:{len(self.terms)}/{len(self.terms_all)}]'
+
+    def export(self, is_hetero=True):
+        nodes, edges = super().export(is_hetero)
+        if self.modify_id is not None:
+            edge_name = 'modify' if is_hetero else 'knowsys_edge'
+            edges.append((self.id_, edge_name, self.modify_id))
+            # edges.append((self.modify_id, 'is_modified', self.id_))
+        return nodes, edges

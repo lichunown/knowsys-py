@@ -36,3 +36,29 @@ class Entity(TreeNode):
 
     def repr_detail(self):
         return super().__repr__() + f'[a:{len(self.attributes)}/{len(self.attributes_all)}|t:{len(self.terms)}/{len(self.terms_all)}]'
+
+    @property
+    def this_to_relation_terms(self):
+        return self.space.relation_terms_from_entity(self)
+
+    @property
+    def this_from_relation_terms(self):
+        return self.space.relation_terms_to_entity(self)
+
+    @property
+    def enable_er_terms(self):
+        res = []
+        from knowsys.types import RelationTerm
+        for relation_term in self.this_to_relation_terms:
+            relation_term: RelationTerm
+            res.extend(relation_term.er_terms_all)
+        return res
+
+    @property
+    def enable_er_terms_backward(self):
+        res = []
+        from knowsys.types import RelationTerm
+        for relation_term in self.this_from_relation_terms:
+            relation_term: RelationTerm
+            res.extend(relation_term.er_terms_all)
+        return res

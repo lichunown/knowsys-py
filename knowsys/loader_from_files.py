@@ -5,9 +5,8 @@ import numpy as np
 import pandas as pd
 
 from typing import *
-from knowsys.types import *
 from knowsys.enums import DirectionType, Direction
-from knowsys.tree import TreeSpace
+from knowsys.tree import TreeSpace, TreeNode
 from knowsys.types import *
 
 
@@ -17,8 +16,9 @@ base_data_dir = os.path.join(os.path.split(__file__)[0], 'cached_data/')
 
 # root = KnowsysType(code='1011000000000006', name='知识体系', name_en='root')
 space = TreeSpace('Knowsys')
-entity_type_root = Entity('105100000000000a', '实体', None, space)
-relation_type_root = Relation('109500000000000b', '关系', None, space,
+knowsys_root = TreeNode('1011000000000006', '知识体系', None, space)
+entity_type_root = Entity('105100000000000a', '实体', knowsys_root, space)
+relation_type_root = Relation('109500000000000b', '关系', knowsys_root, space,
                               '105100000000000a', '105100000000000a')
 
 # ##################### load entity_type / relation_type ############################
@@ -34,7 +34,7 @@ for item in list(data.iloc)[3:]:
         relation_con_entities: List[str] = item.category_full_name_cn.split('/')[1].split('-')
         relation_name = '/'.join(item.category_full_name_cn.split('/')[1:])
         Relation(item.category_code, relation_name, item.parent_category_code, space,
-                 space.get_by_name(relation_con_entities[0]).id_, space.get_by_name(relation_con_entities[0]).id_)
+                 space.get_by_name(relation_con_entities[0]).id_, space.get_by_name(relation_con_entities[1]).id_)
 
 
 # ##################### category_code Map (历史遗留原因) ############################
@@ -59,7 +59,7 @@ direction_num_str_mapping = {
     (1, 1): "反向",
     (0, 0): "双向",
 }
-relation_root_root = RelationTerm(None, '关系术语', None, space,
+relation_root_root = RelationTerm('关系术语', '关系术语', None, space,
                                    space.relation_root.id_, Direction.BiDirection)
 
 for item in data.iloc:
@@ -78,7 +78,14 @@ for item in data.iloc:
                  get_category_code(item.category_code), direction)
 
 # ##################### load entity_term ############################
-
+# 现有数据映射的是带有（个体的），已被弃用，需要手动映射
+entity_term_mappings = {
+    '1055010000000008': '105101000000000b', # 人
+    '1055020000000009': '105102000000000c', # 地
+    '105503000000000a': '1051030000000000',  # 地
+    '105504000000000b': '1051040000000001', # 物
+    '105505000000000c': '1051050000000002',  # 物
+}
 data = pd.read_csv(os.path.join(base_data_dir, 'knowsys_table_ks_system_entity.csv'),
                    converters={'category_code': str, 'entity_code': str, 'parent_entity_code': str})
 data = data[(data['version_name'] == 'standard')]
@@ -90,14 +97,14 @@ for item in data.iloc:
     if item.parent_entity_code == '/':
         continue
     EntityTerm(item.entity_code, item.entity_name, item.parent_entity_code, space,
-               get_category_code(item.category_code))
+               entity_term_mappings[get_category_code(item.category_code)])
 
 # ##################### load ER term ############################
 
 data = pd.read_csv(os.path.join(base_data_dir, 'knowsys_table_ks_system_category_statement.csv'),
                    converters={'category_code': str})
 data = data[data["del_stat"] == 0]
-er_term_root = ERTerm(None, "实体关系术语", None, space,
+er_term_root = ERTerm('实体关系术语', "实体关系术语", None, space,
                       space.entity_term_root.id_, space.relation_term_root.id_)
 for item in data.iloc:
     if item.parent_statement_code == item.direction_code:
@@ -114,9 +121,9 @@ data = pd.read_csv(os.path.join(base_data_dir, 'knowsys_table_ks_system_property
                    converters={'category_code': str, 'entity_code': str, 'parent_entity_code': str})
 data = data[data["del_stat"] == 0]
 
-attr_root = Attribute(None, '属性', None, space)
-e_attr = Attribute(None, '实体属性', attr_root, space)
-r_attr = Attribute(None, '关系属性', attr_root, space)
+attr_root = Attribute('属性', '属性', None, space)
+e_attr = Attribute('实体属性', '实体属性', attr_root, space)
+r_attr = Attribute('关系属性', '关系属性', attr_root, space)
 
 for item in data.iloc:
     # if item.property_code =='10a5150700600007':
@@ -124,7 +131,7 @@ for item in data.iloc:
     try:
         modify = space[get_category_code(item.category_code)]
     except Exception:
-        logging.warning(f'cannot found the modify {get_category_code(item.category_code)} of property {item.property_code}({item.property_name_cn})')
+        # logging.warning(f'cannot found the modify {get_category_code(item.category_code)} of property {item.property_code}({item.property_name_cn})')
         continue
 
     Attribute(item.property_code, item.property_name_cn, e_attr, None,
@@ -137,29 +144,28 @@ data = pd.read_csv(os.path.join(base_data_dir, 'knowsys_table_ks_system_property
                                  'parent_expression_code': str, 'expression_code': str})
 data = data[data["del_stat"] == 0]
 
-attr_term_root = AttributeTerm(None, '属性术语', None, space,
+attr_term_root = AttributeTerm('属性术语', '属性术语', None, space,
                                attr_root.id_)
 for item in data.iloc:
     try:
         modify = space[get_category_code(item.category_code)]
     except Exception:
-        logging.warning(f'cannot found the modify {get_category_code(item.category_code)} of term {item.expression_code}({item.expression_content})')
+        # logging.warning(f'cannot found the modify {get_category_code(item.category_code)} of term {item.expression_code}({item.expression_content})')
         continue
     try:
         attribute = space[item.property_code]
     except Exception:
-        logging.warning(f'cannot found the attribute {item.property_code} of term {item.expression_code}({item.expression_content})')
+        # logging.warning(f'cannot found the attribute {item.property_code} of term {item.expression_code}({item.expression_content})')
         continue
     if item.expression_level == 0:
         parent = attr_term_root
     else:
         parent = space[item.parent_expression_code]
         if not isinstance(parent, AttributeTerm):
-            logging.warning(f'The parent of AttributeTerm {item.expression_content} is logged as {parent} but it is not a AttributeTerm')
+            # logging.warning(f'The parent of AttributeTerm {item.expression_content} is logged as {parent} but it is not a AttributeTerm')
             parent = attr_term_root
 
     AttributeTerm(item.expression_code, item.expression_content, parent, space,
                   attribute.id_, modify.id_)
 
 space.lazy_check()
-space.fixing()

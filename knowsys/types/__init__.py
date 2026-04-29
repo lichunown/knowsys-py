@@ -5,3 +5,4 @@ from .entity_term import EntityTerm
 from .er_term import ERTerm
 from .attribute import Attribute
 from .attribute_term import AttributeTerm
+from .entity import TreeNode

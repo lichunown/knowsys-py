@@ -21,8 +21,17 @@ class EntityTerm(TreeNode):
 
     @property
     def entity(self):
-        return self.space[self.entity_id]
+        if self.entity_id in self.space:
+            return self.space[self.entity_id]
 
     @property
     def attributes_terms_all(self):
         return self.entity.attributes_terms_all
+
+    def export(self, is_hetero=True):
+        nodes, edges = super().export(is_hetero)
+        if self.entity_id is not None:
+            edge_name = 'term_to_entity' if is_hetero else 'knowsys_edge'
+            edges.append((self.id_, edge_name, self.entity_id))
+            # edges.append((self.entity_id, 'has_entity_term', self.id_))
+        return nodes, edges
